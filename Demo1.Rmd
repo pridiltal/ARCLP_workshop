@@ -1,6 +1,6 @@
 ---
 title: "Data Wrangling"
-author: "Priyanga Talagala"
+# author: "Priyanga Talagala"
 output: html_document
 ---
 
@@ -8,19 +8,43 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+
+
+- Data scientists spend 80% of their time cleaning data rather than creating insights. As a result they only spend 20% of their time creating insights, the rest wrangling data. 
+
+- This document demonstrates variety of processes used to transform raw data into more readily used formats.
+
+
+## Study area 
+
+- Pringle Creek, NEON (National Ecological Observatory Network) aquatic sites located in Wise County, Texas, USA
+
+- NEON usually has two sensor locations on any river in the network where water quality is measured using in-situ sensors.
+
+- In Pringle Creek, these locations are situated about 200 m apart.
+
+```{r   out.width = "100%", echo = FALSE, fig.cap='', fig.align='center'}
+knitr::include_graphics("fig/Pringle_creek_map.png")
+```
+
 ```{r load}
+# Collection of R packages designed for data science (data import, tidying, manipulation, visualisation, and programming)
 library(tidyverse)
+# Lubridate is an R package that makes it easier to work with dates and times.
 library(lubridate)
 ```
 
+### Preventing  Biofouling on Water Quality Instruments 
+
+- Every fifth observation in turbidity in both sites are anomalous as a result of the wiper on the optical turbidity sensor operating every five minutes
+
+- During our data cleansing process we  discarded these wiper anomalies in turbidity series from both sites.
+
+
 ```{r}
 # This is a working script to remove wiper anomalies occurs at every 5th  observation
-# load data (setwd to the source file location)
-
 load(here::here("data", "data-raw", "flagged-data", "waq_down.rda"))
 load(here::here("data", "data-raw", "flagged-data", "waq_up.rda"))
-#load(here::here("data", "data-raw", "EOS_5_min.rda"))
-#load(here::here("data", "data-raw", "TSW_5min.rda"))
 
 waq_strm_cols <- c("specificConductance", "dissolvedOxygen", "pH", 
                    "turbidity", "chlorophyll", "fDOM")
@@ -33,26 +57,6 @@ waq_down <- waq_down %>%
 waq_up <- waq_up %>% 
   filter(Timestamp >= ymd("2019-07-01") & Timestamp < ymd("2020-01-01"))
 
-
-```
-
-```{r}
-
-data_turb_up <- waq_up %>% 
-  select(Timestamp, turbidity) %>% 
-  mutate(turbidity_diff = turbidity - lag(turbidity, n = 1L),
-         turbidity_max = zoo::rollmax(turbidity, k = 5, fill = NA,
-                                      align = "right"),
-         wiper_flag = if_else(turbidity == turbidity_max, 1, 0),
-         wiper_flag = if_else(is.na(wiper_flag), 0, wiper_flag))
-
-data_turb_down <- waq_down %>% 
-  select(Timestamp, turbidity) %>% 
-  mutate(turbidity_diff = turbidity - lag(turbidity, n = 1L),
-         turbidity_max = zoo::rollmax(turbidity, k = 5, fill = NA,
-                                      align = "right"),
-         wiper_flag = if_else(turbidity == turbidity_max, 1, 0),
-         wiper_flag = if_else(is.na(wiper_flag), 0, wiper_flag))
 
 ```
 
@@ -100,16 +104,57 @@ waq_up_sub %>%
 
 
 ```{r}
-load(here::here("data", "data-raw", "EOS_5_min.rda"))
-load(here::here("data", "data-raw", "TSW_5min.rda"))
+#  Discarded  wiper anomalies in turbidity series from both sites
 
-load(here::here("data", "data-raw", "waq_instantaneous.rda"))
-load(here::here("data", "data-raw", "variables_20288.rda"))
+data_turb_up <- waq_up %>% 
+  select(Timestamp, turbidity) %>% 
+  mutate(turbidity_diff = turbidity - lag(turbidity, n = 1L),
+         turbidity_max = zoo::rollmax(turbidity, k = 5, fill = NA,
+                                      align = "right"),
+         wiper_flag = if_else(turbidity == turbidity_max, 1, 0),
+         wiper_flag = if_else(is.na(wiper_flag), 0, wiper_flag))
+
+data_turb_down <- waq_down %>% 
+  select(Timestamp, turbidity) %>% 
+  mutate(turbidity_diff = turbidity - lag(turbidity, n = 1L),
+         turbidity_max = zoo::rollmax(turbidity, k = 5, fill = NA,
+                                      align = "right"),
+         wiper_flag = if_else(turbidity == turbidity_max, 1, 0),
+         wiper_flag = if_else(is.na(wiper_flag), 0, wiper_flag))
+
+```
+
+First let's remove the wiper anomalies from turbidity 
+
+```{r eval = FALSE}
+
+waq_down <- waq_down %>% 
+  filter(Timestamp >= ymd("2019-07-01") & Timestamp < ymd("2020-01-01"))
+waq_up <- waq_up %>% 
+  filter(Timestamp >= ymd("2019-07-01") & Timestamp < ymd("2020-01-01"))
+
+
+waq_down <- waq_down %>% 
+  mutate(turbidity = if_else(turbidity_wiperAnomalyFlag == 1 &
+                                 turbidityAnomalyFlag == 0,
+                              as.numeric(NA), turbidity))
+waq_up <- waq_up %>% 
+  mutate(turbidity = if_else(turbidity_wiperAnomalyFlag == 1 &
+                               turbidityAnomalyFlag == 0,
+                             as.numeric(NA), turbidity))
+
+
 
 
 ```
 
-# Summary of quality flags for NEON data
+# Different types of quality flags in Pringle Creek data
+
+
+### Summary of quality flags of NEON data
+
+- The NEON data  undergo an automated water-quality assuring process as a part of the rigorous NEON protocols, and are given a quality flag for each observation. 
+
 
 There are different types of quality tests carried out for NEON data. 
 
@@ -118,11 +163,11 @@ There are different types of quality tests carried out for NEON data.
 * **Stochastic test** - check to ensure that changes in a time series of data are realistic over a given period of time.
   - **Step test** - successive data points are compared to determine if their difference exceeds a maximum threshold.
   - **Null test** - the number of dropped data points over a given period is monitored.
-  - **Gap test** - doesn't report null values but rather just have a ???jump??? in sample times.
+  - **Gap test** - doesn't report null values but rather just have a **jump** in sample times.
 * **Spike test**
 * **Valid calibration test**
 * **Suspect calibration test**
-* **fDOMTempQF** - corrected for temporature 
+* **fDOMTempQF** - corrected for temperature 
 * **fDOMAbsQF** - corrected for absorbance
 * **alpha quality flags** 
   - 1 - If any of the above quality tests fails 
@@ -137,10 +182,19 @@ There are different types of quality tests carried out for NEON data.
   - -1 - If BetaQF = -1
 
 
-# Different types of quality flags in Pringle Creek data
-
 * Let us consider downstream turbidity during July-2019 to December-2019. 
 * The data are measured in 1-minute time intervals. 
+
+```{r}
+load(here::here("data", "data-raw", "EOS_5_min.rda"))
+load(here::here("data", "data-raw", "TSW_5min.rda"))
+
+load(here::here("data", "data-raw", "waq_instantaneous.rda"))
+load(here::here("data", "data-raw", "variables_20288.rda"))
+
+
+```
+
 
 ```{r}
 ### Turbidity downstream
@@ -211,8 +265,6 @@ data_turbidity_down %>%
 ```{r}
 ### Turbidity upstream
 
-```{r turbidity_up, echo=FALSE}
-
 data_turbidity_up <- waq_up %>% 
   as_tibble() %>% 
   mutate(Timestamp = ymd_hms(endDateTime)) %>% 
@@ -260,25 +312,22 @@ data_turbidity_up %>%
 ```
 
 
-First let us remove the wiper anomalies from turbidity 
 
-```{r}
 
-waq_down <- waq_down %>% 
-  mutate(turbidity = if_else(turbidity_wiperAnomalyFlag == 1 &
-                                 turbidityAnomalyFlag == 0,
-                              as.numeric(NA), turbidity))
-waq_up <- waq_up %>% 
-  mutate(turbidity = if_else(turbidity_wiperAnomalyFlag == 1 &
-                               turbidityAnomalyFlag == 0,
-                             as.numeric(NA), turbidity))
 
-```
+
+# Timestamp inconsistency
+
+- The water-quality variables measured by these in-situ sensors include turbidity, specific conductance $(\mu$ S/cm), pH, dissolved oxygen (mg/l) and chlorophyll (mg/l) from both upstream and downstream locations $\longleftarrow$ Measurements are available at **1-minute** frequencies 
+
+- Surface water level (meters above see level) and water temperature (Celsius) from both locations. $\longleftarrow$ Measurements are available at **5-minute** frequencies.
+
+- Aggregated data such that timestamps match across two different datasets
 
 Now let's aggregate into 5mint intervals
 
 
-```{r}
+```{r eval = FALSE}
 #-- Aggregating upstream data 
 
 waq_5min_up <- waq_up %>% 
@@ -301,7 +350,7 @@ waq_5min_up <- waq_5min_up %>%
   left_join(waq_anomaly_flag_5min_up, by = "roundedTimestamp")
 
 
-#-- Agrregating downstream data --#
+#-- Aggregating downstream data --#
 
 waq_5min_down <- waq_down %>% 
   padr::thicken(interval = "5 min",
@@ -324,5 +373,186 @@ waq_5min_down <- waq_5min_down %>%
 
 
 
+
+```
+
+
+```{r eval = FALSE}
+
+# Merging with level and temperature data
+
+EOS_5min_up <- EOS_5_min %>% 
+  as_tibble() %>% 
+  mutate(Timestamp = ymd_hms(endDateTime)) %>% 
+  filter(horizontalPosition == 110,
+         Timestamp >= ymd("2019-07-01") 
+                & Timestamp < ymd("2020-01-01")) %>% 
+  select(Timestamp, surfacewaterElevMean)
+
+EOS_5min_down <- EOS_5_min %>% 
+  as_tibble() %>% 
+  mutate(Timestamp = ymd_hms(endDateTime)) %>% 
+  filter(horizontalPosition == 132,
+         Timestamp >= ymd("2019-07-01") 
+                & Timestamp < ymd("2020-01-01")) %>% 
+  select(Timestamp, surfacewaterElevMean)
+
+
+TSW_5min_up <- TSW_5min %>% 
+  as_tibble() %>% 
+  mutate(Timestamp = ymd_hms(endDateTime)) %>% 
+  filter(horizontalPosition == 101,
+         Timestamp >= ymd("2019-07-01") 
+                & Timestamp < ymd("2020-01-01")) %>% 
+  select(Timestamp, surfWaterTempMean)
+
+TSW_5min_down <- TSW_5min %>% 
+  as_tibble() %>% 
+  mutate(Timestamp = ymd_hms(endDateTime)) %>% 
+  filter(horizontalPosition == 102,
+         Timestamp >= ymd("2019-07-01") 
+                & Timestamp < ymd("2020-01-01")) %>% 
+  select(Timestamp, surfWaterTempMean)
+
+
+
+all_5min_up <- list(waq_5min_up, EOS_5min_up, TSW_5min_up) %>% 
+  purrr::reduce(left_join, by = c("roundedTimestamp" = "Timestamp")) %>% 
+  mutate(site = "up")
+
+all_5min_down <- list(waq_5min_down, EOS_5min_down, TSW_5min_down) %>% 
+  purrr::reduce(left_join, by = c("roundedTimestamp" = "Timestamp")) %>% 
+  mutate(site = "down")
+
+
+# Joining upstream and downstream together
+
+PRIN_5min_flagged <- bind_rows(all_5min_up, all_5min_down)
+
+save(PRIN_5min_flagged, file = "../data/PRIN_5min_flagged.rda")
+
+
+
+
+
+
+
+```
+
+## Labelling process
+
+- The quality flags are available in NEON data are not necessarily technical anomalies. 
+
+- Therefore we did not directly use any quality flags other than range flags in this study
+
+- We come up with our own labeled data set focusing on technical anomalies in sensor equipment
+
+- Most practitioners won't have to do this
+
+- Purpose of the labelling process: To evaluate the performance of our proposed algorithms
+
+
+```{r loadoutPRINData}
+load(here::here( "data", "data-raw", "PRIN_5min_flagged.rda"))
+
+PRIN_5min_flagged <- PRIN_5min_flagged %>%
+  rename(
+    Timestamp = roundedTimestamp,
+    level = surfacewaterElevMean,
+    conductance = specificConductance,
+    dissolved_oxygen = dissolvedOxygen,
+    temperature = surfWaterTempMean
+  ) %>%
+  mutate(Timestamp = ymd_hms(Timestamp))
+
+```
+
+## Visualization of data with outliers
+
+```{r tsanomalyplotPRINData, fig.height=13, out.width="100%"}
+
+
+# Pivot data values from wide to long
+data_val <- PRIN_5min_flagged %>%
+  select(Timestamp, conductance, dissolved_oxygen,
+       pH, turbidity, chlorophyll, fDOM,
+       level, temperature, site ) %>%
+  pivot_longer(cols = conductance:temperature) 
+
+# Pivot data flags from wide to long
+data_flag <- PRIN_5min_flagged %>%
+  select(Timestamp, conductanceAnomalyFlag, 
+         dissolvedOxygenAnomalyFlag,
+         pHAnomalyFlag, turbidityAnomalyFlag,
+         chlorophyllAnomalyFlag, fDOMAnomalyFlag,
+         site ) %>%
+  rename(
+    conductance = conductanceAnomalyFlag,
+    dissolved_oxygen = dissolvedOxygenAnomalyFlag,
+    pH = pHAnomalyFlag,
+    turbidity = turbidityAnomalyFlag,
+    chlorophyll = chlorophyllAnomalyFlag,
+    fDOM = fDOMAnomalyFlag
+  ) %>%
+  pivot_longer(cols = conductance:fDOM)
+
+# Combine values and flag data
+data<- left_join(data_val, data_flag, by = 
+                   c("Timestamp", "site", "name" ) ) %>%
+      rename(value = value.x,
+             flag = value.y)
+
+data_outliers <- data %>%
+  filter(flag == 1)
+  
+
+p <- data %>%
+  ggplot(aes(x = Timestamp, y = value, color = site)) +
+  geom_line() +
+  facet_wrap(~name, ncol = 1, scales = "free_y") +
+  scale_color_manual(values = c("down" = "black", "up" = "blue")) +
+  theme(legend.position='bottom') +
+  geom_point(data = data_outliers, aes(x = Timestamp, y = value), color = "red" )
+
+print(p)
+```
+
+
+## Visualization of upstream data with outliers
+
+```{r tsplotUPstream, out.width="100%", fig.height=8, fig.cap="Upstream data"}
+data_outliers <- data %>%
+  filter(flag == 1, site == "up")
+
+p1 <- data %>%
+  filter(site == "up") %>%
+  ggplot(aes(x = Timestamp, y = value)) +
+  geom_line() +
+  facet_wrap(~name, ncol = 1, scales = "free_y") +
+  theme(legend.position='bottom') +
+  geom_point(data = data_outliers, aes(x = Timestamp, y = value), color = "red" )
+
+print(p1)
+
+```
+
+
+## Visualization of downstream data with outliers
+
+
+```{r tsplotDownstream, out.width="100%", fig.height=8, fig.cap="Downstream data"}
+
+data_outliers <- data %>%
+  filter(flag == 1, site == "down")
+
+p2 <- data %>%
+  filter(site == "down") %>%
+  ggplot(aes(x = Timestamp, y = value)) +
+  geom_line() +
+  facet_wrap(~name, ncol = 1, scales = "free_y") +
+  theme(legend.position='bottom') +
+  geom_point(data = data_outliers, aes(x = Timestamp, y = value), color = "red" )
+
+print(p2)
 
 ```

@@ -1,6 +1,6 @@
 ---
 title: "Data Wrangling"
-author: "Priyanga Talagala"
+# author: "Priyanga Talagala"
 output: html_document
 ---
 
