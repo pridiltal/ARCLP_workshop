@@ -105,7 +105,6 @@ waq_up_sub %>%
 
 ```{r}
 #  Discarded  wiper anomalies in turbidity series from both sites
-
 data_turb_up <- waq_up %>% 
   select(Timestamp, turbidity) %>% 
   mutate(turbidity_diff = turbidity - lag(turbidity, n = 1L),
@@ -124,7 +123,6 @@ data_turb_down <- waq_down %>%
 
 ```
 
-First let's remove the wiper anomalies from turbidity 
 
 ```{r eval = FALSE}
 
@@ -329,6 +327,8 @@ Now let's aggregate into 5mint intervals
 
 ```{r eval = FALSE}
 #-- Aggregating upstream data 
+# `thicken` creates evenly spaced intervals to which observations can be aggregated. pad subsequently checks for missing observations and inserts records where needed. 
+# Take the datetime variable in a data frame and map this to a variable of a higher interval. 
 
 waq_5min_up <- waq_up %>% 
   padr::thicken(interval = "5 min",
@@ -350,7 +350,7 @@ waq_5min_up <- waq_5min_up %>%
   left_join(waq_anomaly_flag_5min_up, by = "roundedTimestamp")
 
 
-#-- Aggregating downstream data --#
+#-- Aggregating downstream data 
 
 waq_5min_down <- waq_down %>% 
   padr::thicken(interval = "5 min",
@@ -376,6 +376,7 @@ waq_5min_down <- waq_5min_down %>%
 
 ```
 
+- Surface water level (meters above see level) and water temperature (Celsius) from both locations. $\longleftarrow$ Measurements are available at **5-minute** frequencies.
 
 ```{r eval = FALSE}
 
@@ -431,12 +432,6 @@ PRIN_5min_flagged <- bind_rows(all_5min_up, all_5min_down)
 
 save(PRIN_5min_flagged, file = "../data/PRIN_5min_flagged.rda")
 
-
-
-
-
-
-
 ```
 
 ## Labelling process
@@ -445,11 +440,14 @@ save(PRIN_5min_flagged, file = "../data/PRIN_5min_flagged.rda")
 
 - Therefore we did not directly use any quality flags other than range flags in this study
 
-- We come up with our own labeled data set focusing on technical anomalies in sensor equipment
+- We come up with our own labeled data set focusing on technical anomalies in sensor equipment (Manual labelling process)
 
-- Most practitioners won't have to do this
+- We used interactive graphics which allows the operator to interact with the graphical information presented on the display.
 
-- Purpose of the labelling process: To evaluate the performance of our proposed algorithms
+- Most practitioners won't have to do this.
+
+- Purpose of the labelling process: To evaluate the performance of our proposed algorithms.
+
 
 
 ```{r loadoutPRINData}
